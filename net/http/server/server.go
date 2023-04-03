@@ -38,7 +38,6 @@ func NewServer(getRoot func(*http.Request) string, init ...func(Server)) Server 
 }
 
 func (s Server) Use(child _ResourceManager) Server {
-	*child.Server() = s
 	s.nodes = append(s.nodes, child)
 	return s
 }
@@ -104,7 +103,7 @@ func (s Server) handle(w http.ResponseWriter, r *http.Request) {
 			token := paths.SuffixPath[0]
 			for _, handler := range s.nodes {
 				if handler.GetWordList().Match(token) {
-					handler.Handle(w, r, paths, nil)
+					handler.Handle(w, r, paths, s, nil)
 					return
 				}
 			}

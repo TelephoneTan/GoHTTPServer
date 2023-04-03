@@ -27,13 +27,11 @@ type ResourceRequestHandler[PACK any] struct {
 }
 
 type _ResourceManager interface {
-	Server() *Server
 	GetWordList() *types.WordList
-	Handle(w http.ResponseWriter, r *http.Request, paths PathPack, relativeRootDirList []string)
+	Handle(w http.ResponseWriter, r *http.Request, paths PathPack, server Server, relativeRootDirList []string)
 }
 
 type ResourceManager[PACK any] struct {
-	server              Server
 	WordList            types.WordList
 	GetRelativeRootDir  func() string
 	GetHomepageFileName func() string
@@ -50,13 +48,8 @@ func NewResourceManager[PACK any](init ...func(*ResourceManager[PACK])) *Resourc
 }
 
 func (rm *ResourceManager[PACK]) Use(child _ResourceManager) *ResourceManager[PACK] {
-	*child.Server() = rm.server
 	rm.nodes = append(rm.nodes, child)
 	return rm
-}
-
-func (rm *ResourceManager[PACK]) Server() *Server {
-	return &rm.server
 }
 
 func (rm *ResourceManager[PACK]) getRelativeRootDir() (relativeRootDir string) {
@@ -70,12 +63,12 @@ start:
 	goto end
 }
 
-func (rm *ResourceManager[PACK]) getRootDir(r *http.Request, relativeRootDirList []string) string {
+func (rm *ResourceManager[PACK]) getRootDir(r *http.Request, server Server, relativeRootDirList []string) string {
 	relativeDir := util.JoinPath(util.JoinPath(relativeRootDirList...), rm.getRelativeRootDir())
 	if relativeDir == "" {
 		relativeDir = "."
 	}
-	root := rm.server.GetRoot(r)
+	root := server.GetRoot(r)
 	return util.AppendPathDelimiter(util.JoinPath(root, relativeDir))
 }
 
@@ -201,6 +194,7 @@ func (rm *ResourceManager[PACK]) Handle(
 	w http.ResponseWriter,
 	r *http.Request,
 	paths PathPack,
+	server Server,
 	relativeRootDirList []string,
 ) {
 	if len(paths.SuffixPath) < 1 {
@@ -212,7 +206,7 @@ func (rm *ResourceManager[PACK]) Handle(
 	if hijacked {
 		return
 	}
-	filePath := rm.getRootDir(r, relativeRootDirList)
+	filePath := rm.getRootDir(r, server, relativeRootDirList)
 	if len(paths.SuffixPath) == 1 {
 		filePath = util.JoinPath(filePath, rm.getHomepageFileName())
 	} else {
@@ -220,7 +214,7 @@ func (rm *ResourceManager[PACK]) Handle(
 		paths.SuffixPath = paths.SuffixPath[1:]
 		for _, manager := range rm.nodes {
 			if manager.GetWordList().Match(paths.SuffixPath[0]) {
-				manager.Handle(w, r, paths, append(relativeRootDirList, rm.getRelativeRootDir()))
+				manager.Handle(w, r, paths, server, append(relativeRootDirList, rm.getRelativeRootDir()))
 				return
 			}
 		}

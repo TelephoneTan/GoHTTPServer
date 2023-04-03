@@ -28,12 +28,16 @@ func defaultRootRelative(_ *http.Request) string {
 	return "root-" + strconv.Itoa(rand.Int())
 }
 
-func NewServer(getRoot func(*http.Request) string, init ...func(Server)) Server {
+func NewServer(getRoot, getRootRelative func(*http.Request) string, init ...func(Server)) Server {
 	if getRoot == nil {
 		getRoot = defaultRoot
 	}
+	if getRootRelative == nil {
+		getRootRelative = defaultRootRelative
+	}
 	return util.New(&_Server{
-		GetRoot: getRoot,
+		GetRoot:         getRoot,
+		GetRootRelative: getRootRelative,
 	}, init...)
 }
 
@@ -108,14 +112,10 @@ func (s Server) handle(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			// 文件服务器
-			getRootRelative := defaultRootRelative
-			if s.GetRootRelative != nil {
-				getRootRelative = s.GetRootRelative
-			}
 			HandleFile(
 				w,
 				r,
-				util.JoinPath(s.GetRoot(r), util.JoinPath(append([]string{getRootRelative(r)}, paths.SuffixPath...)...)),
+				util.JoinPath(s.GetRoot(r), util.JoinPath(append([]string{s.GetRootRelative(r)}, paths.SuffixPath...)...)),
 				false,
 			)
 		}

@@ -3,21 +3,29 @@ package base
 import (
 	"github.com/TelephoneTan/GoHTTPServer/util"
 	"github.com/TelephoneTan/GoLog/log"
+	"math/rand"
 	"net/http"
 	"runtime/debug"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type _Server struct {
-	GetRoot func(*http.Request) string
-	Guard   func(http.ResponseWriter, *http.Request, PathPack) bool
-	nodes   []_ResourceManager
+	GetRoot         func(*http.Request) string
+	Guard           func(http.ResponseWriter, *http.Request, PathPack) bool
+	GetRootRelative func(*http.Request) string
+	nodes           []_ResourceManager
 }
 
 type Server = *_Server
 
 func defaultRoot(_ *http.Request) string {
-	return "."
+	return "data-" + strconv.FormatInt(time.Now().UnixMilli(), 10) + strconv.Itoa(rand.Int())
+}
+
+func defaultRootRelative(_ *http.Request) string {
+	return "root-" + strconv.Itoa(rand.Int())
 }
 
 func NewServer(getRoot func(*http.Request) string, init ...func(Server)) Server {
@@ -94,10 +102,15 @@ func (s Server) handle(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
+			// 文件服务器
+			getRootRelative := defaultRootRelative
+			if s.GetRootRelative != nil {
+				getRootRelative = s.GetRootRelative
+			}
 			HandleFile(
 				w,
 				r,
-				util.JoinPath(s.GetRoot(r), util.JoinPath(paths.SuffixPath...)),
+				util.JoinPath(s.GetRoot(r), util.JoinPath(append([]string{getRootRelative(r)}, paths.SuffixPath...)...)),
 				false,
 			)
 		}

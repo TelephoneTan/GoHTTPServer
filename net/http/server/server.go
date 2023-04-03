@@ -13,7 +13,7 @@ import (
 
 type _Server struct {
 	GetRoot         func(*http.Request) string
-	Guard           func(http.ResponseWriter, *http.Request, PathPack) bool
+	Guard           func(http.ResponseWriter, *http.Request, *PathPack) bool
 	GetRootRelative func(*http.Request) string
 	nodes           []_ResourceManager
 }
@@ -91,7 +91,7 @@ func (s Server) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		{
 			// 守卫优先
-			if s.Guard != nil && s.Guard(w, r, paths) {
+			if s.Guard != nil && s.Guard(w, r, &paths) {
 				return
 			}
 			// 匹配子节点

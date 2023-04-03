@@ -37,6 +37,12 @@ func NewServer(getRoot func(*http.Request) string, init ...func(Server)) Server 
 	}, init...)
 }
 
+func (s Server) Use(child _ResourceManager) Server {
+	*child.Server() = s
+	s.nodes = append(s.nodes, child)
+	return s
+}
+
 func (s Server) Handle(w http.ResponseWriter, r *http.Request) {
 	normalReturn := false
 	defer func() {

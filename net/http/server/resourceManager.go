@@ -27,6 +27,7 @@ type ResourceRequestHandler[PACK any] struct {
 }
 
 type _ResourceManager interface {
+	Server() *Server
 	GetWordList() *types.WordList
 	Handle(w http.ResponseWriter, r *http.Request, paths PathPack, relativeRootDirList []string)
 }
@@ -44,20 +45,18 @@ type ResourceManager[PACK any] struct {
 	nodes  []_ResourceManager
 }
 
-func NewResourceManager[PACK any](server Server, init ...func(*ResourceManager[PACK])) *ResourceManager[PACK] {
-	rm := util.New(&ResourceManager[PACK]{
-		server: server,
-	}, init...)
-	server.nodes = append(server.nodes, rm)
+func NewResourceManager[PACK any](init ...func(*ResourceManager[PACK])) *ResourceManager[PACK] {
+	return util.New(&ResourceManager[PACK]{}, init...)
+}
+
+func (rm *ResourceManager[PACK]) Use(child _ResourceManager) *ResourceManager[PACK] {
+	*child.Server() = rm.server
+	rm.nodes = append(rm.nodes, child)
 	return rm
 }
 
-func NewChildResourceManager[PackParent, PackChild any](parent *ResourceManager[PackParent], init ...func(*ResourceManager[PackChild])) *ResourceManager[PackChild] {
-	rm := util.New(&ResourceManager[PackChild]{
-		server: parent.server,
-	}, init...)
-	parent.nodes = append(parent.nodes, rm)
-	return rm
+func (rm *ResourceManager[PACK]) Server() *Server {
+	return &rm.server
 }
 
 func (rm *ResourceManager[PACK]) getRelativeRootDir() (relativeRootDir string) {

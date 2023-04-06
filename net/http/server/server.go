@@ -13,8 +13,8 @@ import (
 
 type _Server struct {
 	GetRoot         func(*http.Request) string
+	GetRootRelative func() string
 	Guard           func(http.ResponseWriter, *http.Request, *PathPack) bool
-	GetRootRelative func(*http.Request) string
 	nodes           []_ResourceManager
 }
 
@@ -24,11 +24,11 @@ func defaultRoot(_ *http.Request) string {
 	return "data-" + strconv.FormatInt(time.Now().UnixMilli(), 10) + strconv.Itoa(rand.Int())
 }
 
-func defaultRootRelative(_ *http.Request) string {
+func defaultRootRelative() string {
 	return "root-" + strconv.Itoa(rand.Int())
 }
 
-func NewServer(getRoot, getRootRelative func(*http.Request) string, init ...func(Server)) Server {
+func NewServer(getRoot func(*http.Request) string, getRootRelative func() string, init ...func(Server)) Server {
 	if getRoot == nil {
 		getRoot = defaultRoot
 	}
@@ -115,7 +115,7 @@ func (s Server) handle(w http.ResponseWriter, r *http.Request) {
 			HandleFile(
 				w,
 				r,
-				util.JoinPath(s.GetRoot(r), util.JoinPath(append([]string{s.GetRootRelative(r)}, paths.SuffixPath...)...)),
+				util.JoinPath(s.GetRoot(r), util.JoinPath(append([]string{s.GetRootRelative()}, paths.SuffixPath...)...)),
 				false,
 			)
 		}

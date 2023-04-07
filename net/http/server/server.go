@@ -3,7 +3,9 @@ package server
 import (
 	"github.com/TelephoneTan/GoHTTPServer/util"
 	"github.com/TelephoneTan/GoLog/log"
+	"golang.org/x/net/idna"
 	"math/rand"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"strconv"
@@ -14,6 +16,10 @@ import (
 type _Server struct {
 	GetRoot         func(*http.Request) string
 	GetRootRelative func() string
+	GetHost         func() string
+	GetHostPort     func() uint16
+	GetIP           func() string
+	GetIPPort       func() uint16
 	Guard           func(http.ResponseWriter, *http.Request, *PathPack) bool
 	nodes           []_ResourceManager
 }
@@ -46,10 +52,128 @@ func (s Server) Use(child ..._ResourceManager) Server {
 	return s
 }
 
-func (s Server) Handle(w http.ResponseWriter, r *http.Request) {
-	normalReturn := false
+func extractHost(s string) string {
+	if s[0] == '[' {
+		return s[:strings.IndexRune(s, ']')+1]
+	} else if colonIndex := strings.IndexRune(s, ':'); colonIndex != -1 {
+		return s[:colonIndex]
+	} else {
+		return s
+	}
+}
+
+func extractPort(s string) (portNum *uint16, portStr string) {
+	if s[0] == '[' {
+		s = s[strings.IndexRune(s, ']')+1:]
+	}
+	if colonIndex := strings.IndexRune(s, ':'); colonIndex != -1 {
+		portStr = s[colonIndex+1:]
+		if port, err := strconv.ParseUint(portStr, 10, 16); err == nil {
+			port16 := uint16(port)
+			portNum = &port16
+		}
+	}
+	return portNum, portStr
+}
+
+func getIPPort(r *http.Request) (ip string, port *uint16) {
+	addr := r.Context().Value(http.LocalAddrContextKey).(net.Addr)
+	addrStr := addr.String()
+	addrNet := addr.Network()
+	switch addrNet {
+	case
+		"tcp",
+		"tcp4",
+		"tcp6",
+		"udp",
+		"udp4",
+		"udp6":
+		ip = extractHost(addrStr)
+		var portStr string
+		port, portStr = extractPort(addrStr)
+		if port == nil {
+			if servicePort, err := net.LookupPort(addrNet, portStr); err == nil {
+				servicePort16 := uint16(servicePort)
+				port = &servicePort16
+			}
+		}
+	default:
+		ip, port = addrStr, nil
+	}
+	return ip, port
+}
+
+func getHostPort(r *http.Request) (host string, port *uint16) {
+	host = extractHost(r.Host)
+	port, _ = extractPort(r.Host)
+	return host, port
+}
+
+func getHostIPPort(r *http.Request) (host string, hostPort *uint16, ip string, ipPort *uint16) {
+	ip, ipPort = getIPPort(r)
+	host, hostPort = getHostPort(r)
+	if host == "" {
+		host = ip
+	}
+	if hostPort == nil {
+		hostPort = ipPort
+	}
+	return host, hostPort, ip, ipPort
+}
+
+func matchHost(host string, getValidHost func() string) bool {
+	if getValidHost == nil {
+		return true
+	}
+	if host == "" {
+		return false
+	}
+	validHost := getValidHost()
+	host, err := idna.ToUnicode(host)
+	if err != nil {
+		return false
+	}
+	validHost, err = idna.ToUnicode(validHost)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(host, validHost)
+}
+
+func matchPort(port *uint16, getValidPort func() uint16) bool {
+	if getValidPort == nil {
+		return true
+	}
+	if port == nil {
+		return false
+	}
+	validPort := getValidPort()
+	return *port == validPort
+}
+
+func (s Server) match(r *http.Request) bool {
+	host, hostPort, ip, ipPort := getHostIPPort(r)
+	return matchHost(host, s.GetHost) &&
+		matchPort(hostPort, s.GetHostPort) &&
+		matchHost(ip, s.GetIP) &&
+		matchPort(ipPort, s.GetIPPort)
+}
+
+func (s Server) Handle(w http.ResponseWriter, r *http.Request) (handled bool) {
+	normal := false
+	goto start
+end:
+	normal = true
+	return handled
+handle:
+	handled = true
+	goto end
+notHandle:
+	handled = false
+	goto end
+start:
 	defer func() {
-		if !normalReturn {
+		if !normal {
 			panicArgument := recover()
 			log.EF(
 				"\n发生了错误：%v\n"+
@@ -60,10 +184,14 @@ func (s Server) Handle(w http.ResponseWriter, r *http.Request) {
 				debug.Stack(),
 			)
 			w.WriteHeader(http.StatusInternalServerError)
+			handled = true
 		}
 	}()
+	if !s.match(r) {
+		goto notHandle
+	}
 	s.handle(w, r)
-	normalReturn = true
+	goto handle
 }
 
 func (s Server) handle(w http.ResponseWriter, r *http.Request) {

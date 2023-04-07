@@ -47,8 +47,8 @@ func NewResourceManager[PACK any](init ...func(*ResourceManager[PACK])) *Resourc
 	return util.New(&ResourceManager[PACK]{}, init...)
 }
 
-func (rm *ResourceManager[PACK]) Use(child _ResourceManager) *ResourceManager[PACK] {
-	rm.nodes = append(rm.nodes, child)
+func (rm *ResourceManager[PACK]) Use(child ..._ResourceManager) *ResourceManager[PACK] {
+	rm.nodes = append(rm.nodes, child...)
 	return rm
 }
 

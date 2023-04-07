@@ -41,8 +41,8 @@ func NewServer(getRoot func(*http.Request) string, getRootRelative func() string
 	}, init...)
 }
 
-func (s Server) Use(child _ResourceManager) Server {
-	s.nodes = append(s.nodes, child)
+func (s Server) Use(child ..._ResourceManager) Server {
+	s.nodes = append(s.nodes, child...)
 	return s
 }
 

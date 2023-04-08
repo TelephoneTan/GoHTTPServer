@@ -28,7 +28,7 @@ type _Server struct {
 	GetIP           func() string
 	GetIPPort       func() uint16
 	Guard           func(http.ResponseWriter, *http.Request, *PathPack) bool
-	nodes           []_ResourceManager
+	nodes           []ResourceManagerI
 }
 
 type Server = *_Server
@@ -54,7 +54,7 @@ func NewServer(getRoot func(HostPack) string, getRootRelative func(HostPack) str
 	}, init...)
 }
 
-func (s Server) Use(child ..._ResourceManager) Server {
+func (s Server) Use(child ...ResourceManagerI) Server {
 	s.nodes = append(s.nodes, child...)
 	return s
 }

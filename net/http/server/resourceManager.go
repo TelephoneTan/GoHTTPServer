@@ -26,12 +26,12 @@ type ResourceRequestHandler[PACK any] struct {
 	Monitor func(pack PACK, hijacked bool)
 }
 
-type _ResourceManager interface {
+type ResourceManagerI interface {
 	WordList() *types.WordList
 	Handle(w http.ResponseWriter, r *http.Request, hostInfo HostPack, paths PathPack, server Server, relativeRootDirList []string)
 }
 
-type ResourceManager[PACK any] struct {
+type _ResourceManager[PACK any] struct {
 	GetWordList         func() types.WordList
 	GetRelativeRootDir  func() string
 	GetHomepageFileName func() string
@@ -39,23 +39,33 @@ type ResourceManager[PACK any] struct {
 	GetRedirect func(r *http.Request, paths PathPack) (redirect bool, statusCode int, location string)
 	// 用于记录请求，所有情况下均会被调用
 	Record func(r *http.Request, paths PathPack)
-	Guide  map[method.Method]*ResourceRequestHandler[PACK]
-	nodes  []_ResourceManager
+	Guide  map[method.Method]ResourceRequestHandler[PACK]
+	nodes  []ResourceManagerI
 }
 
-func NewResourceManager[PACK any](getWordList func() types.WordList, getRelativeRootDir func() string, init ...func(*ResourceManager[PACK])) *ResourceManager[PACK] {
-	return util.New(&ResourceManager[PACK]{
-		GetWordList:        getWordList,
-		GetRelativeRootDir: getRelativeRootDir,
-	}, init...)
+type ResourceManager[PACK any] struct {
+	*_ResourceManager[PACK]
 }
 
-func (rm *ResourceManager[PACK]) Use(child ..._ResourceManager) *ResourceManager[PACK] {
+func NewResourceManager[PACK any](getWordList func() types.WordList, getRelativeRootDir func() string, init ...func(b ResourceManager[PACK])) ResourceManager[PACK] {
+	return ResourceManager[PACK]{
+		util.New(&_ResourceManager[PACK]{
+			GetWordList:        getWordList,
+			GetRelativeRootDir: getRelativeRootDir,
+		}, func(i *_ResourceManager[PACK]) {
+			if len(init) > 0 {
+				init[0](ResourceManager[PACK]{i})
+			}
+		}),
+	}
+}
+
+func (rm ResourceManager[PACK]) Use(child ...ResourceManagerI) ResourceManager[PACK] {
 	rm.nodes = append(rm.nodes, child...)
 	return rm
 }
 
-func (rm *ResourceManager[PACK]) getRelativeRootDir() (relativeRootDir string) {
+func (rm ResourceManager[PACK]) getRelativeRootDir() (relativeRootDir string) {
 	goto start
 end:
 	return relativeRootDir
@@ -66,7 +76,7 @@ start:
 	goto end
 }
 
-func (rm *ResourceManager[PACK]) getRootDir(hostInfo HostPack, server Server, relativeRootDirList []string) string {
+func (rm ResourceManager[PACK]) getRootDir(hostInfo HostPack, server Server, relativeRootDirList []string) string {
 	relativeDir := util.JoinPath(util.JoinPath(relativeRootDirList...), rm.getRelativeRootDir())
 	if relativeDir == "" {
 		relativeDir = "."
@@ -75,7 +85,7 @@ func (rm *ResourceManager[PACK]) getRootDir(hostInfo HostPack, server Server, re
 	return util.AppendPathDelimiter(util.JoinPath(root, relativeDir))
 }
 
-func (rm *ResourceManager[PACK]) getHomepageFileName() (homepageFileName string) {
+func (rm ResourceManager[PACK]) getHomepageFileName() (homepageFileName string) {
 	goto start
 end:
 	return homepageFileName
@@ -87,15 +97,15 @@ start:
 }
 
 // 计算用于处理该请求的 Handler
-func (rm *ResourceManager[PACK]) calHandler(r *http.Request) *ResourceRequestHandler[PACK] {
+func (rm ResourceManager[PACK]) calHandler(r *http.Request) *ResourceRequestHandler[PACK] {
 	if h, has := rm.Guide[method.Parse(r.Method)]; has {
-		return h
+		return &h
 	}
 	return nil
 }
 
 // 计算用于处理该请求的动作
-func (rm *ResourceManager[PACK]) calActions(r *http.Request, w http.ResponseWriter, paths PathPack) (
+func (rm ResourceManager[PACK]) calActions(r *http.Request, w http.ResponseWriter, paths PathPack) (
 	hijacked bool,
 	reply func(),
 	monitor func(hijacked bool),
@@ -146,7 +156,7 @@ start:
 }
 
 // 处理请求
-func (rm *ResourceManager[PACK]) handle(r *http.Request, w http.ResponseWriter, paths PathPack) (hijacked bool) {
+func (rm ResourceManager[PACK]) handle(r *http.Request, w http.ResponseWriter, paths PathPack) (hijacked bool) {
 	goto start
 end:
 	return hijacked
@@ -193,7 +203,7 @@ start:
 	goto end
 }
 
-func (rm *ResourceManager[PACK]) Handle(
+func (rm ResourceManager[PACK]) Handle(
 	w http.ResponseWriter,
 	r *http.Request,
 	hostInfo HostPack,
@@ -230,7 +240,7 @@ func (rm *ResourceManager[PACK]) Handle(
 	HandleFile(w, r, filePath, false)
 }
 
-func (rm *ResourceManager[PACK]) WordList() *types.WordList {
+func (rm ResourceManager[PACK]) WordList() *types.WordList {
 	wl := rm.GetWordList()
 	return &wl
 }

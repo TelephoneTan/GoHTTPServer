@@ -14,8 +14,8 @@ import (
 )
 
 type _Server struct {
-	GetRoot         func(*http.Request) string
-	GetRootRelative func() string
+	GetRoot         func(host string, port *uint16) string
+	GetRootRelative func(host string, port *uint16) string
 	GetHost         func() string
 	GetHostPort     func() uint16
 	GetIP           func() string
@@ -26,15 +26,15 @@ type _Server struct {
 
 type Server = *_Server
 
-func defaultRoot(_ *http.Request) string {
+func defaultRoot(_ string, _ *uint16) string {
 	return "data-" + strconv.FormatInt(time.Now().UnixMilli(), 10) + strconv.Itoa(rand.Int())
 }
 
-func defaultRootRelative() string {
+func defaultRootRelative(_ string, _ *uint16) string {
 	return "root-" + strconv.Itoa(rand.Int())
 }
 
-func NewServer(getRoot func(*http.Request) string, getRootRelative func() string, init ...func(Server)) Server {
+func NewServer(getRoot func(host string, port *uint16) string, getRootRelative func(host string, port *uint16) string, init ...func(Server)) Server {
 	if getRoot == nil {
 		getRoot = defaultRoot
 	}
@@ -151,8 +151,7 @@ func matchPort(port *uint16, getValidPort func() uint16) bool {
 	return *port == validPort
 }
 
-func (s Server) match(r *http.Request) bool {
-	host, hostPort, ip, ipPort := getHostIPPort(r)
+func (s Server) match(host string, hostPort *uint16, ip string, ipPort *uint16) bool {
 	return matchHost(host, s.GetHost) &&
 		matchPort(hostPort, s.GetHostPort) &&
 		matchHost(ip, s.GetIP) &&
@@ -187,14 +186,15 @@ start:
 			handled = true
 		}
 	}()
-	if !s.match(r) {
+	host, hostPort, ip, ipPort := getHostIPPort(r)
+	if !s.match(host, hostPort, ip, ipPort) {
 		goto notHandle
 	}
-	s.handle(w, r)
+	s.handle(w, r, host, hostPort)
 	goto handle
 }
 
-func (s Server) handle(w http.ResponseWriter, r *http.Request) {
+func (s Server) handle(w http.ResponseWriter, r *http.Request, host string, port *uint16) {
 	path := r.URL.Path
 	if !strings.HasPrefix(path, "/") { // 确保路径以 '/' 开头，否则路径分割会不一致
 		path = "/" + path
@@ -243,7 +243,10 @@ func (s Server) handle(w http.ResponseWriter, r *http.Request) {
 			HandleFile(
 				w,
 				r,
-				util.JoinPath(s.GetRoot(r), util.JoinPath(append([]string{s.GetRootRelative()}, paths.SuffixPath...)...)),
+				util.JoinPath(
+					s.GetRoot(host, port),
+					util.JoinPath(append([]string{s.GetRootRelative(host, port)}, paths.SuffixPath...)...),
+				),
 				false,
 			)
 		}

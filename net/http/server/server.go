@@ -13,9 +13,16 @@ import (
 	"time"
 )
 
+type HostPack struct {
+	Host     string
+	HostPort *uint16
+	IP       string
+	IPPort   *uint16
+}
+
 type _Server struct {
-	GetRoot         func(host string, port *uint16) string
-	GetRootRelative func(host string, port *uint16) string
+	GetRoot         func(HostPack) string
+	GetRootRelative func(HostPack) string
 	GetHost         func() string
 	GetHostPort     func() uint16
 	GetIP           func() string
@@ -26,15 +33,15 @@ type _Server struct {
 
 type Server = *_Server
 
-func defaultRoot(_ string, _ *uint16) string {
+func defaultRoot(_ HostPack) string {
 	return "data-" + strconv.FormatInt(time.Now().UnixMilli(), 10) + strconv.Itoa(rand.Int())
 }
 
-func defaultRootRelative(_ string, _ *uint16) string {
+func defaultRootRelative(_ HostPack) string {
 	return "root-" + strconv.Itoa(rand.Int())
 }
 
-func NewServer(getRoot func(host string, port *uint16) string, getRootRelative func(host string, port *uint16) string, init ...func(Server)) Server {
+func NewServer(getRoot func(HostPack) string, getRootRelative func(HostPack) string, init ...func(Server)) Server {
 	if getRoot == nil {
 		getRoot = defaultRoot
 	}
@@ -109,16 +116,21 @@ func getHostPort(r *http.Request) (host string, port *uint16) {
 	return host, port
 }
 
-func getHostIPPort(r *http.Request) (host string, hostPort *uint16, ip string, ipPort *uint16) {
-	ip, ipPort = getIPPort(r)
-	host, hostPort = getHostPort(r)
+func getHostInfo(r *http.Request) HostPack {
+	ip, ipPort := getIPPort(r)
+	host, hostPort := getHostPort(r)
 	if host == "" {
 		host = ip
 	}
 	if hostPort == nil {
 		hostPort = ipPort
 	}
-	return host, hostPort, ip, ipPort
+	return HostPack{
+		Host:     host,
+		HostPort: hostPort,
+		IP:       ip,
+		IPPort:   ipPort,
+	}
 }
 
 func matchHost(host string, getValidHost func() string) bool {
@@ -151,11 +163,11 @@ func matchPort(port *uint16, getValidPort func() uint16) bool {
 	return *port == validPort
 }
 
-func (s Server) match(host string, hostPort *uint16, ip string, ipPort *uint16) bool {
-	return matchHost(host, s.GetHost) &&
-		matchPort(hostPort, s.GetHostPort) &&
-		matchHost(ip, s.GetIP) &&
-		matchPort(ipPort, s.GetIPPort)
+func (s Server) match(hostInfo HostPack) bool {
+	return matchHost(hostInfo.Host, s.GetHost) &&
+		matchPort(hostInfo.HostPort, s.GetHostPort) &&
+		matchHost(hostInfo.IP, s.GetIP) &&
+		matchPort(hostInfo.IPPort, s.GetIPPort)
 }
 
 func (s Server) Handle(w http.ResponseWriter, r *http.Request) (handled bool) {
@@ -186,15 +198,15 @@ start:
 			handled = true
 		}
 	}()
-	host, hostPort, ip, ipPort := getHostIPPort(r)
-	if !s.match(host, hostPort, ip, ipPort) {
+	hostInfo := getHostInfo(r)
+	if !s.match(hostInfo) {
 		goto notHandle
 	}
-	s.handle(w, r, host, hostPort)
+	s.handle(w, r, hostInfo)
 	goto handle
 }
 
-func (s Server) handle(w http.ResponseWriter, r *http.Request, host string, port *uint16) {
+func (s Server) handle(w http.ResponseWriter, r *http.Request, hostInfo HostPack) {
 	path := r.URL.Path
 	if !strings.HasPrefix(path, "/") { // 确保路径以 '/' 开头，否则路径分割会不一致
 		path = "/" + path
@@ -234,8 +246,8 @@ func (s Server) handle(w http.ResponseWriter, r *http.Request, host string, port
 			// 匹配子节点
 			token := paths.SuffixPath[0]
 			for _, handler := range s.nodes {
-				if handler.GetWordList().Match(token) {
-					handler.Handle(w, r, paths, s, nil)
+				if handler.WordList().Match(token) {
+					handler.Handle(w, r, hostInfo, paths, s, nil)
 					return
 				}
 			}
@@ -244,8 +256,8 @@ func (s Server) handle(w http.ResponseWriter, r *http.Request, host string, port
 				w,
 				r,
 				util.JoinPath(
-					s.GetRoot(host, port),
-					util.JoinPath(append([]string{s.GetRootRelative(host, port)}, paths.SuffixPath...)...),
+					s.GetRoot(hostInfo),
+					util.JoinPath(append([]string{s.GetRootRelative(hostInfo)}, paths.SuffixPath...)...),
 				),
 				false,
 			)

@@ -23,10 +23,10 @@ type HostPack struct {
 type _Server struct {
 	GetRoot         func(HostPack) string
 	GetRootRelative func(HostPack) string
-	GetHost         func() string
-	GetHostPort     func() uint16
-	GetIP           func() string
-	GetIPPort       func() uint16
+	GetHosts        func() []string
+	GetHostPorts    func() []uint16
+	GetIPs          func() []string
+	GetIPPorts      func() []uint16
 	Guard           func(http.ResponseWriter, *http.Request, *PathPack) bool
 	nodes           []ResourceManagerI
 }
@@ -133,41 +133,58 @@ func getHostInfo(r *http.Request) HostPack {
 	}
 }
 
-func matchHost(host string, getValidHost func() string) bool {
-	if getValidHost == nil {
+func withoutBrackets(s string) string {
+	if s[0] == '[' {
+		if tailIndex := strings.IndexRune(s, ']'); tailIndex != -1 {
+			s = s[1:tailIndex]
+		}
+	}
+	return s
+}
+
+func matchHost(host string, getValidHosts func() []string) bool {
+	if getValidHosts == nil {
 		return true
 	}
 	if host == "" {
 		return false
 	}
-	validHost := getValidHost()
 	host, err := idna.ToUnicode(host)
 	if err != nil {
 		return false
 	}
-	validHost, err = idna.ToUnicode(validHost)
-	if err != nil {
-		return false
+	host = withoutBrackets(host)
+	validHosts := getValidHosts()
+	for _, validHost := range validHosts {
+		validHost, err = idna.ToUnicode(validHost)
+		if err == nil && strings.EqualFold(host, withoutBrackets(validHost)) {
+			return true
+		}
 	}
-	return strings.EqualFold(host, validHost)
+	return false
 }
 
-func matchPort(port *uint16, getValidPort func() uint16) bool {
-	if getValidPort == nil {
+func matchPort(port *uint16, getValidPorts func() []uint16) bool {
+	if getValidPorts == nil {
 		return true
 	}
 	if port == nil {
 		return false
 	}
-	validPort := getValidPort()
-	return *port == validPort
+	validPorts := getValidPorts()
+	for _, validPort := range validPorts {
+		if *port == validPort {
+			return true
+		}
+	}
+	return false
 }
 
 func (s Server) match(hostInfo HostPack) bool {
-	return matchHost(hostInfo.Host, s.GetHost) &&
-		matchPort(hostInfo.HostPort, s.GetHostPort) &&
-		matchHost(hostInfo.IP, s.GetIP) &&
-		matchPort(hostInfo.IPPort, s.GetIPPort)
+	return matchHost(hostInfo.Host, s.GetHosts) &&
+		matchPort(hostInfo.HostPort, s.GetHostPorts) &&
+		matchHost(hostInfo.IP, s.GetIPs) &&
+		matchPort(hostInfo.IPPort, s.GetIPPorts)
 }
 
 func (s Server) Handle(w http.ResponseWriter, r *http.Request) (handled bool) {

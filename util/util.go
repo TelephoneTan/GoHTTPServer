@@ -41,3 +41,31 @@ func AddrToIPPort(addr net.Addr) (ip net.IP, port *uint16) {
 	}
 	return ip, port
 }
+
+func GetAllIPs() (ips []net.IP) {
+	interfaces, err := net.Interfaces()
+	if err == nil {
+		for _, i := range interfaces {
+			addresses, err := i.Addrs()
+			if err == nil {
+				for _, addr := range addresses {
+					ip, _ := AddrToIPPort(addr)
+					if ip != nil {
+						ips = append(ips, ip)
+					}
+				}
+			}
+		}
+	}
+	return ips
+}
+
+func GetLocalhostIPs() (ips []net.IP) {
+	allIPs := GetAllIPs()
+	for _, ip := range allIPs {
+		if ip.IsLoopback() {
+			ips = append(ips, ip)
+		}
+	}
+	return ips
+}

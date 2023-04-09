@@ -16,7 +16,7 @@ import (
 type HostPack struct {
 	Host     string
 	HostPort *uint16
-	IP       string
+	IP       net.IP
 	IPPort   *uint16
 }
 
@@ -25,7 +25,7 @@ type _Server struct {
 	GetRootRelative func(HostPack) string
 	GetHosts        func() []string
 	GetHostPorts    func() []uint16
-	GetIPs          func() []string
+	GetIPs          func() []net.IP
 	GetIPPorts      func() []uint16
 	Guard           func(http.ResponseWriter, *http.Request, *PathPack) bool
 	nodes           []ResourceManagerI
@@ -83,31 +83,8 @@ func extractPort(s string) (portNum *uint16, portStr string) {
 	return portNum, portStr
 }
 
-func getIPPort(r *http.Request) (ip string, port *uint16) {
-	addr := r.Context().Value(http.LocalAddrContextKey).(net.Addr)
-	addrStr := addr.String()
-	addrNet := addr.Network()
-	switch addrNet {
-	case
-		"tcp",
-		"tcp4",
-		"tcp6",
-		"udp",
-		"udp4",
-		"udp6":
-		ip = extractHost(addrStr)
-		var portStr string
-		port, portStr = extractPort(addrStr)
-		if port == nil {
-			if servicePort, err := net.LookupPort(addrNet, portStr); err == nil {
-				servicePort16 := uint16(servicePort)
-				port = &servicePort16
-			}
-		}
-	default:
-		ip, port = addrStr, nil
-	}
-	return ip, port
+func getIPPort(r *http.Request) (ip net.IP, port *uint16) {
+	return util.AddrToIPPort(r.Context().Value(http.LocalAddrContextKey).(net.Addr))
 }
 
 func getHostPort(r *http.Request) (host string, port *uint16) {
@@ -119,9 +96,6 @@ func getHostPort(r *http.Request) (host string, port *uint16) {
 func getHostInfo(r *http.Request) HostPack {
 	ip, ipPort := getIPPort(r)
 	host, hostPort := getHostPort(r)
-	if host == "" {
-		host = ip
-	}
 	if hostPort == nil {
 		hostPort = ipPort
 	}
@@ -164,6 +138,22 @@ func matchHost(host string, getValidHosts func() []string) bool {
 	return false
 }
 
+func matchIP(ip net.IP, getValidIPs func() []net.IP) bool {
+	if getValidIPs == nil {
+		return true
+	}
+	if ip == nil {
+		return false
+	}
+	validIPs := getValidIPs()
+	for _, validIP := range validIPs {
+		if validIP.Equal(ip) {
+			return true
+		}
+	}
+	return false
+}
+
 func matchPort(port *uint16, getValidPorts func() []uint16) bool {
 	if getValidPorts == nil {
 		return true
@@ -183,7 +173,7 @@ func matchPort(port *uint16, getValidPorts func() []uint16) bool {
 func (s Server) match(hostInfo HostPack) bool {
 	return matchHost(hostInfo.Host, s.GetHosts) &&
 		matchPort(hostInfo.HostPort, s.GetHostPorts) &&
-		matchHost(hostInfo.IP, s.GetIPs) &&
+		matchIP(hostInfo.IP, s.GetIPs) &&
 		matchPort(hostInfo.IPPort, s.GetIPPorts)
 }
 

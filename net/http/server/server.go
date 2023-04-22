@@ -21,14 +21,15 @@ type HostPack struct {
 }
 
 type _Server struct {
-	GetRoot         func(HostPack) string
-	GetRootRelative func(HostPack) string
-	GetHosts        func() []string
-	GetHostPorts    func() []uint16
-	GetIPs          func() []net.IP
-	GetIPPorts      func() []uint16
-	Guard           func(http.ResponseWriter, *http.Request, *PathPack) bool
-	nodes           []ResourceManagerI
+	GetRoot           func(HostPack) string
+	GetRootRelative   func(HostPack) string
+	GetHosts          func() []string
+	GetHostPorts      func() []uint16
+	GetIPs            func() []net.IP
+	GetIPPorts        func() []uint16
+	Guard             func(http.ResponseWriter, *http.Request, *PathPack) bool
+	HasRootFileServer func() bool
+	nodes             []ResourceManagerI
 }
 
 type Server = *_Server
@@ -209,11 +210,13 @@ start:
 	if !s.match(hostInfo) {
 		goto notHandle
 	}
-	s.handle(w, r, hostInfo)
+	if !s.handle(w, r, hostInfo) {
+		goto notHandle
+	}
 	goto handle
 }
 
-func (s Server) handle(w http.ResponseWriter, r *http.Request, hostInfo HostPack) {
+func (s Server) handle(w http.ResponseWriter, r *http.Request, hostInfo HostPack) bool {
 	path := r.URL.Path
 	if !strings.HasPrefix(path, "/") { // 确保路径以 '/' 开头，否则路径分割会不一致
 		path = "/" + path
@@ -229,7 +232,7 @@ func (s Server) handle(w http.ResponseWriter, r *http.Request, hostInfo HostPack
 			if p == "." || p == ".." {
 				log.W("request contains relative path")
 				w.WriteHeader(http.StatusBadRequest)
-				return
+				return true
 			}
 		}
 	}
@@ -248,26 +251,31 @@ func (s Server) handle(w http.ResponseWriter, r *http.Request, hostInfo HostPack
 		{
 			// 守卫优先
 			if s.Guard != nil && s.Guard(w, r, &paths) {
-				return
+				return true
 			}
 			// 匹配子节点
 			token := paths.SuffixPath[0]
 			for _, handler := range s.nodes {
 				if handler.WordList().Match(token) {
 					handler.Handle(w, r, hostInfo, paths, s, nil)
-					return
+					return true
 				}
 			}
-			// 文件服务器
-			HandleFile(
-				w,
-				r,
-				util.JoinPath(
-					s.GetRoot(hostInfo),
-					util.JoinPath(append([]string{s.GetRootRelative(hostInfo)}, paths.SuffixPath...)...),
-				),
-				false,
-			)
+			if s.HasRootFileServer != nil && s.HasRootFileServer() {
+				// 文件服务器
+				HandleFile(
+					w,
+					r,
+					util.JoinPath(
+						s.GetRoot(hostInfo),
+						util.JoinPath(append([]string{s.GetRootRelative(hostInfo)}, paths.SuffixPath...)...),
+					),
+					false,
+				)
+				return true
+			} else {
+				return false
+			}
 		}
 	}
 }

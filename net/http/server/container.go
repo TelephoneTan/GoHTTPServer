@@ -35,7 +35,7 @@ func NewContainer(getServices func() []Service, getHandleFunc func() HandleFunc,
 		GetHandleFunc:      getHandleFunc,
 		GetPickSSLCertFunc: getPickSSLCertFunc,
 	}
-	if init != nil {
+	if len(init) > 0 {
 		init[0](container)
 	}
 	return container

@@ -22,10 +22,11 @@ type PickSSLCertFunc = func(info *tls.ClientHelloInfo) (*tls.Certificate, error)
 type HandleFunc = func(http.ResponseWriter, *http.Request)
 
 type _Container struct {
-	GetServices        func() []Service
-	GetHandleFunc      func() HandleFunc
-	GetPickSSLCertFunc func() PickSSLCertFunc
-	wg                 sync.WaitGroup
+	GetServices                func() []Service
+	GetHandleFunc              func() HandleFunc
+	GetPickSSLCertFunc         func() PickSSLCertFunc
+	ShouldListenOnDefaultPorts func() bool
+	wg                         sync.WaitGroup
 }
 type Container = *_Container
 
@@ -107,19 +108,21 @@ func (c Container) Boot() {
 			c.goHttp(service, pickSSL, handler)
 		}
 	}
-	httpHandler := handler
-	if pickSSL != nil {
-		httpHandler = http.NewServeMux()
-		httpHandler.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-			httpUtil.SetLocation(writer, "https://"+request.Host+request.RequestURI)
-			writer.WriteHeader(http.StatusTemporaryRedirect)
-		})
+	if c.ShouldListenOnDefaultPorts == nil || c.ShouldListenOnDefaultPorts() {
+		httpHandler := handler
+		if pickSSL != nil {
+			httpHandler = http.NewServeMux()
+			httpHandler.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+				httpUtil.SetLocation(writer, "https://"+request.Host+request.RequestURI)
+				writer.WriteHeader(http.StatusTemporaryRedirect)
+			})
+		}
+		// HTTP
+		c.goHttp(Service{Network: "tcp4", Address: "0.0.0.0:80", UseTLS: false, UseGzip: true}, pickSSL, httpHandler)
+		c.goHttp(Service{Network: "tcp6", Address: "[::]:80", UseTLS: false, UseGzip: true}, pickSSL, httpHandler)
+		// HTTPS
+		c.goHttp(Service{Network: "tcp4", Address: "0.0.0.0:443", UseTLS: true, UseGzip: true}, pickSSL, handler)
+		c.goHttp(Service{Network: "tcp6", Address: "[::]:443", UseTLS: true, UseGzip: true}, pickSSL, handler)
 	}
-	// HTTP
-	c.goHttp(Service{Network: "tcp4", Address: "0.0.0.0:80", UseTLS: false, UseGzip: true}, pickSSL, httpHandler)
-	c.goHttp(Service{Network: "tcp6", Address: "[::]:80", UseTLS: false, UseGzip: true}, pickSSL, httpHandler)
-	// HTTPS
-	c.goHttp(Service{Network: "tcp4", Address: "0.0.0.0:443", UseTLS: true, UseGzip: true}, pickSSL, handler)
-	c.goHttp(Service{Network: "tcp6", Address: "[::]:443", UseTLS: true, UseGzip: true}, pickSSL, handler)
 	c.await()
 }

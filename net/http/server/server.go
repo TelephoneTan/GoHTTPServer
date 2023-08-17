@@ -202,7 +202,12 @@ start:
 				panicArgument,
 				debug.Stack(),
 			)
-			w.WriteHeader(http.StatusInternalServerError)
+			switch e := panicArgument.(type) {
+			case Exception:
+				w.WriteHeader(e.HTTPCode())
+			default:
+				w.WriteHeader(http.StatusInternalServerError)
+			}
 			handled = true
 		}
 	}()

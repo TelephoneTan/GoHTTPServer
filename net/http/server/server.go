@@ -207,6 +207,8 @@ start:
 			case Exception:
 				e.SetHeader(w)
 				w.Header().Add("Reason", mime.QEncoding.Encode("utf-8", e.TipZH()))
+				w.Header().Add("Error-Code", mime.QEncoding.Encode("utf-8", e.Code()))
+				w.Header().Add("Error-ID", mime.QEncoding.Encode("utf-8", e.ID()))
 				w.WriteHeader(e.HTTPCode())
 			default:
 				w.WriteHeader(http.StatusInternalServerError)

@@ -204,6 +204,7 @@ start:
 			)
 			switch e := panicArgument.(type) {
 			case Exception:
+				e.SetHeader(w)
 				w.WriteHeader(e.HTTPCode())
 			default:
 				w.WriteHeader(http.StatusInternalServerError)

@@ -5,6 +5,7 @@ import (
 	"github.com/TelephoneTan/GoLog/log"
 	"golang.org/x/net/idna"
 	"math/rand"
+	"mime"
 	"net"
 	"net/http"
 	"runtime/debug"
@@ -205,6 +206,7 @@ start:
 			switch e := panicArgument.(type) {
 			case Exception:
 				e.SetHeader(w)
+				w.Header().Add("Reason", mime.QEncoding.Encode("utf-8", e.TipZH()))
 				w.WriteHeader(e.HTTPCode())
 			default:
 				w.WriteHeader(http.StatusInternalServerError)

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"github.com/TelephoneTan/GoHTTPServer/util"
 	"github.com/TelephoneTan/GoLog/log"
 	"golang.org/x/net/idna"
@@ -195,14 +196,7 @@ start:
 	defer func() {
 		if !normal {
 			panicArgument := recover()
-			log.EF(
-				"\n发生了错误：%v\n"+
-					"\n======================================\n"+
-					"\n%s\n"+
-					"\n======================================\n",
-				panicArgument,
-				debug.Stack(),
-			)
+			var id string
 			switch e := panicArgument.(type) {
 			case Exception:
 				e.SetHeader(w)
@@ -211,8 +205,19 @@ start:
 				w.Header().Add("Error-ID", mime.QEncoding.Encode("utf-8", e.ID()))
 				w.WriteHeader(e.HTTPCode())
 			default:
+				id = fmt.Sprintf("E#%v#%v ", time.Now().UnixNano(), rand.Int())
+				w.Header().Add("Error-ID", id)
 				w.WriteHeader(http.StatusInternalServerError)
 			}
+			log.EF(
+				"\n发生了错误：%v%v\n"+
+					"\n======================================\n"+
+					"\n%s\n"+
+					"\n======================================\n",
+				id,
+				panicArgument,
+				debug.Stack(),
+			)
 			handled = true
 		}
 	}()

@@ -210,7 +210,9 @@ start:
 				w.Header().Add("Error-ID", id)
 				statusCode = http.StatusInternalServerError
 			}
-			w.Header().Set("Content-Length", "0")
+			if r.Method != "HEAD" {
+				w.Header().Set("Content-Length", "0")
+			}
 			w.WriteHeader(statusCode)
 			log.EF(
 				"\n发生了错误：%v%v\n"+

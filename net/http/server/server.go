@@ -197,18 +197,21 @@ start:
 		if !normal {
 			panicArgument := recover()
 			var id string
+			var statusCode int
 			switch e := panicArgument.(type) {
 			case Exception:
 				e.SetHeader(w)
 				w.Header().Add("Reason", mime.QEncoding.Encode("utf-8", e.TipZH()))
 				w.Header().Add("Error-Code", mime.QEncoding.Encode("utf-8", e.Code()))
 				w.Header().Add("Error-ID", mime.QEncoding.Encode("utf-8", e.ID()))
-				w.WriteHeader(e.HTTPCode())
+				statusCode = e.HTTPCode()
 			default:
 				id = fmt.Sprintf("E#%v#%v ", time.Now().UnixNano(), rand.Int())
 				w.Header().Add("Error-ID", id)
-				w.WriteHeader(http.StatusInternalServerError)
+				statusCode = http.StatusInternalServerError
 			}
+			w.Header().Set("Content-Length", "0")
+			w.WriteHeader(statusCode)
 			log.EF(
 				"\n发生了错误：%v%v\n"+
 					"\n======================================\n"+

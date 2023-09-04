@@ -2,13 +2,17 @@ package server
 
 import (
 	"fmt"
+	"github.com/TelephoneTan/GoHTTPServer/net/http/header"
+	"github.com/TelephoneTan/GoHTTPServer/net/http/method"
 	"github.com/TelephoneTan/GoHTTPServer/util"
+	httpUtil "github.com/TelephoneTan/GoHTTPServer/util/http"
 	"github.com/TelephoneTan/GoLog/log"
 	"golang.org/x/net/idna"
 	"math/rand"
 	"mime"
 	"net"
 	"net/http"
+	"os"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -31,6 +35,8 @@ type _Server struct {
 	GetIPPorts        func() []uint16
 	Guard             func(http.ResponseWriter, *http.Request, *PathPack) bool
 	HasRootFileServer func() bool
+	GetCDNHost        func() string
+	GetCDNOriginHost  func() string
 	nodes             []ResourceManagerI
 }
 
@@ -236,6 +242,87 @@ start:
 	goto handle
 }
 
+func (s Server) ToCDN(w http.ResponseWriter, r *http.Request) bool {
+	var cdnHost, cdnOriginHost string
+	if s.GetCDNHost != nil {
+		cdnHost = s.GetCDNHost()
+	}
+	if s.GetCDNOriginHost != nil {
+		cdnOriginHost = s.GetCDNOriginHost()
+	}
+	if cdnHost != "" && cdnOriginHost != "" {
+		clientHost, _ := idna.ToASCII(r.Host)
+		cdnOriginHost, _ := idna.ToASCII(cdnOriginHost)
+		if !strings.EqualFold(clientHost, cdnOriginHost) {
+			cdnHost, _ := idna.ToASCII(cdnHost)
+			w.Header().Set("Content-Length", "0")
+			w.Header().Set("Location", r.URL.Scheme+"://"+cdnHost+r.RequestURI)
+			w.WriteHeader(http.StatusTemporaryRedirect)
+			return true
+		}
+	}
+	return false
+}
+
+func (s Server) HandleFile(w http.ResponseWriter, r *http.Request, filePath string, isPrivateFile bool) {
+	tag := "FileServer"
+	fileInfo, err := os.Stat(filePath)
+	ff, err2 := os.Open(filePath)
+	if err2 == nil { // 如果成功打开了文件，记得关闭文件
+		defer func() {
+			_ = ff.Close()
+		}()
+	}
+	if err != nil {
+		log.EF("%s : 发生了错误 (%v) 在文件 (%s) 上", tag, err, filePath)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	if err2 != nil {
+		log.EF("%s : 发生了错误 (%v) 在文件 (%s) 上", tag, err2, filePath)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	switch method.Parse(r.Method) {
+	// 方法查询
+	case method.OPTIONS:
+		httpUtil.SetAllow(w,
+			// 方法查询
+			method.OPTIONS,
+			// 查
+			method.GET,
+			// 头部预览
+			method.HEAD,
+		)
+		w.WriteHeader(http.StatusOK)
+		// 查
+	case method.GET:
+		if s.ToCDN(w, r) {
+			return
+		}
+		fallthrough
+	case
+		// 头部预览
+		method.HEAD:
+		if fileInfo.IsDir() {
+			log.WF("%s : 文件 (%s) 是个目录", tag, filePath)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if isPrivateFile {
+			// 私有缓存
+			w.Header().Set(header.CacheControl, "private")
+		} else {
+			// 缓存，但是每次都要验证
+			w.Header().Set(header.CacheControl, "no-cache")
+		}
+		http.ServeContent(w, r, fileInfo.Name(), fileInfo.ModTime(), ff)
+	// 不支持其他方法
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
 func (s Server) handle(w http.ResponseWriter, r *http.Request, hostInfo HostPack) bool {
 	path := r.URL.Path
 	if !strings.HasPrefix(path, "/") { // 确保路径以 '/' 开头，否则路径分割会不一致
@@ -283,7 +370,7 @@ func (s Server) handle(w http.ResponseWriter, r *http.Request, hostInfo HostPack
 			}
 			if s.HasRootFileServer != nil && s.HasRootFileServer() {
 				// 文件服务器
-				HandleFile(
+				s.HandleFile(
 					w,
 					r,
 					util.JoinPath(

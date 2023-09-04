@@ -237,7 +237,7 @@ func (rm ResourceManager[PACK]) Handle(
 		nodes = append(nodes, paths.SuffixPath...)
 		filePath = util.JoinPath(nodes...)
 	}
-	HandleFile(w, r, filePath, false)
+	server.HandleFile(w, r, filePath, false)
 }
 
 func (rm ResourceManager[PACK]) WordList() *types.WordList {

@@ -5,8 +5,10 @@ import (
 	"github.com/TelephoneTan/GoHTTPGzipServer/gzip"
 	httpUtil "github.com/TelephoneTan/GoHTTPServer/util/http"
 	"github.com/TelephoneTan/GoLog/log"
+	"golang.org/x/net/idna"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -26,6 +28,7 @@ type _Container struct {
 	GetHandleFunc              func() HandleFunc
 	GetPickSSLCertFunc         func() PickSSLCertFunc
 	ShouldListenOnDefaultPorts func() bool
+	GetCDNOriginHosts          func() []string
 	wg                         sync.WaitGroup
 }
 type Container = *_Container
@@ -40,6 +43,21 @@ func NewContainer(getServices func() []Service, getHandleFunc func() HandleFunc,
 		init[0](container)
 	}
 	return container
+}
+
+func (c Container) matchCDNOriginHost(r *http.Request) bool {
+	var cdnOriginHosts []string
+	if c.GetCDNOriginHosts != nil {
+		cdnOriginHosts = c.GetCDNOriginHosts()
+	}
+	clientHost, _ := idna.ToASCII(r.Host)
+	for _, host := range cdnOriginHosts {
+		host, _ := idna.ToASCII(host)
+		if strings.EqualFold(clientHost, host) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c Container) await() {
@@ -113,6 +131,10 @@ func (c Container) Boot() {
 		if pickSSL != nil {
 			httpHandler = http.NewServeMux()
 			httpHandler.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+				if c.matchCDNOriginHost(request) {
+					handler.ServeHTTP(writer, request)
+					return
+				}
 				httpUtil.SetLocation(writer, "https://"+request.Host+request.RequestURI)
 				writer.WriteHeader(http.StatusTemporaryRedirect)
 			})

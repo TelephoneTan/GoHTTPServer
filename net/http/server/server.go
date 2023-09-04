@@ -256,7 +256,7 @@ func (s Server) ToCDN(w http.ResponseWriter, r *http.Request) bool {
 		if !strings.EqualFold(clientHost, cdnOriginHost) {
 			cdnHost, _ := idna.ToASCII(cdnHost)
 			w.Header().Set("Content-Length", "0")
-			w.Header().Set("Location", r.URL.Scheme+"://"+cdnHost+r.RequestURI)
+			w.Header().Set("Location", "http://"+cdnHost+r.RequestURI)
 			w.WriteHeader(http.StatusTemporaryRedirect)
 			return true
 		}

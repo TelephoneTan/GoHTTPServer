@@ -135,7 +135,8 @@ func (c Container) Boot() {
 					handler.ServeHTTP(writer, request)
 					return
 				}
-				httpUtil.SetLocation(writer, "https://"+request.Host+request.RequestURI)
+				host, _ := idna.ToASCII(request.Host)
+				httpUtil.SetLocation(writer, "https://"+host+request.RequestURI)
 				writer.WriteHeader(http.StatusTemporaryRedirect)
 			})
 		}

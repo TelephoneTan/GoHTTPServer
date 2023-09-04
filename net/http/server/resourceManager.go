@@ -13,7 +13,7 @@ type ResourceRequestHandler[PACK any] struct {
 	// 用于解析请求并决定是否要拦截请求
 	Peek func(r *http.Request, paths PathPack) (pack PACK, hijacked bool)
 	// 如果请求被拦截，此函数会被调用用于作出回复
-	Reply func(w http.ResponseWriter, pack PACK)
+	Reply func(w http.ResponseWriter, toCDN func() bool, pack PACK)
 	// 用于统计业务，此函数相比于 ResourceManager.Record 有如下差异：
 	//
 	// * Monitor 能够拿到请求解析结果用于详细分析
@@ -105,7 +105,7 @@ func (rm ResourceManager[PACK]) calHandler(r *http.Request) *ResourceRequestHand
 }
 
 // 计算用于处理该请求的动作
-func (rm ResourceManager[PACK]) calActions(r *http.Request, w http.ResponseWriter, paths PathPack) (
+func (rm ResourceManager[PACK]) calActions(s Server, r *http.Request, w http.ResponseWriter, paths PathPack) (
 	hijacked bool,
 	reply func(),
 	monitor func(hijacked bool),
@@ -144,7 +144,9 @@ start:
 	hijacked = hijacked && handler.Reply != nil
 	if hijacked {
 		reply = func() {
-			handler.Reply(w, pack)
+			handler.Reply(w, func() bool {
+				return s.toCDN(w, r)
+			}, pack)
 		}
 	}
 	if handler.Monitor != nil {
@@ -156,12 +158,12 @@ start:
 }
 
 // 处理请求
-func (rm ResourceManager[PACK]) handle(r *http.Request, w http.ResponseWriter, paths PathPack) (hijacked bool) {
+func (rm ResourceManager[PACK]) handle(s Server, r *http.Request, w http.ResponseWriter, paths PathPack) (hijacked bool) {
 	goto start
 end:
 	return hijacked
 start:
-	hijacked, reply, monitor, record, redirect := rm.calActions(r, w, paths)
+	hijacked, reply, monitor, record, redirect := rm.calActions(s, r, w, paths)
 	if record != nil {
 		record()
 	}
@@ -180,7 +182,7 @@ start:
 					originalMethod := r.Method
 					r.Method = m.String()
 					defer func() { r.Method = originalMethod }()
-					if hijacked, _, _, _, _ := rm.calActions(r, w, paths); hijacked {
+					if hijacked, _, _, _, _ := rm.calActions(s, r, w, paths); hijacked {
 						supportedMethodList = append(supportedMethodList, m)
 					}
 				}()
@@ -216,7 +218,7 @@ func (rm ResourceManager[PACK]) Handle(
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	hijacked := rm.handle(r, w, paths)
+	hijacked := rm.handle(server, r, w, paths)
 	if hijacked {
 		return
 	}

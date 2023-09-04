@@ -242,7 +242,7 @@ start:
 	goto handle
 }
 
-func (s Server) ToCDN(w http.ResponseWriter, r *http.Request) bool {
+func (s Server) toCDN(w http.ResponseWriter, r *http.Request) bool {
 	var cdnHost, cdnOriginHost string
 	if s.GetCDNHost != nil {
 		cdnHost = s.GetCDNHost()
@@ -309,7 +309,7 @@ func (s Server) HandleFile(w http.ResponseWriter, r *http.Request, filePath stri
 			// 私有缓存
 			w.Header().Set(header.CacheControl, "private")
 		} else {
-			if s.ToCDN(w, r) {
+			if s.toCDN(w, r) {
 				return
 			}
 			// 缓存，但是每次都要验证

@@ -295,15 +295,11 @@ func (s Server) HandleFile(w http.ResponseWriter, r *http.Request, filePath stri
 			method.HEAD,
 		)
 		w.WriteHeader(http.StatusOK)
-		// 查
-	case method.GET:
-		if s.ToCDN(w, r) {
-			return
-		}
-		fallthrough
 	case
 		// 头部预览
-		method.HEAD:
+		method.HEAD,
+		// 查
+		method.GET:
 		if fileInfo.IsDir() {
 			log.WF("%s : 文件 (%s) 是个目录", tag, filePath)
 			w.WriteHeader(http.StatusBadRequest)
@@ -313,6 +309,9 @@ func (s Server) HandleFile(w http.ResponseWriter, r *http.Request, filePath stri
 			// 私有缓存
 			w.Header().Set(header.CacheControl, "private")
 		} else {
+			if s.ToCDN(w, r) {
+				return
+			}
 			// 缓存，但是每次都要验证
 			w.Header().Set(header.CacheControl, "no-cache")
 		}

@@ -223,8 +223,10 @@ func (rm ResourceManager[PACK]) Handle(
 		return
 	}
 	filePath := rm.getRootDir(hostInfo, server, relativeRootDirList)
+	var noCDN bool
 	if len(paths.SuffixPath) == 1 {
 		filePath = util.JoinPath(filePath, rm.getHomepageFileName())
+		noCDN = true
 	} else {
 		paths.PrefixPath = paths.PrefixPath[:len(paths.PrefixPath)+1]
 		paths.SuffixPath = paths.SuffixPath[1:]
@@ -238,8 +240,9 @@ func (rm ResourceManager[PACK]) Handle(
 		nodes = append(nodes, filePath)
 		nodes = append(nodes, paths.SuffixPath...)
 		filePath = util.JoinPath(nodes...)
+		noCDN = false
 	}
-	server.HandleFile(w, r, filePath, false)
+	server.HandleFile(w, r, filePath, noCDN)
 }
 
 func (rm ResourceManager[PACK]) WordList() *types.WordList {

@@ -264,7 +264,7 @@ func (s Server) toCDN(w http.ResponseWriter, r *http.Request) bool {
 	return false
 }
 
-func (s Server) HandleFile(w http.ResponseWriter, r *http.Request, filePath string, isPrivateFile bool) {
+func (s Server) HandleFile(w http.ResponseWriter, r *http.Request, filePath string, privateOrNoCDN bool) {
 	tag := "FileServer"
 	fileInfo, err := os.Stat(filePath)
 	ff, err2 := os.Open(filePath)
@@ -305,7 +305,7 @@ func (s Server) HandleFile(w http.ResponseWriter, r *http.Request, filePath stri
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		if isPrivateFile {
+		if privateOrNoCDN {
 			// 私有缓存
 			w.Header().Set(header.CacheControl, "private")
 		} else {

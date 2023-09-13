@@ -21,3 +21,6 @@ func SetContentType(w http.ResponseWriter, t mime.Type) {
 func SetLocation(w http.ResponseWriter, location string) {
 	w.Header().Set(header.Location, location)
 }
+func CacheForever(w http.ResponseWriter) {
+	w.Header().Set(header.CacheControl, "max-age=3153600000")
+}

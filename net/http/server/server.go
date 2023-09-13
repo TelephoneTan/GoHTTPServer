@@ -317,7 +317,7 @@ func (s Server) HandleFile(w http.ResponseWriter, r *http.Request, filePath stri
 			// 2023年9月13日15点37分 之后：
 			//   由于阿里云 CDN 和腾讯云 CDN 不遵循 no-cache 规范，改为使用 max-age 并指定尽可能长的缓存周期
 			//   max-age 不会导致需要身份认证才能访问的请求回复被缓存在公有缓存上
-			w.Header().Set(header.CacheControl, "max-age=3153600000")
+			httpUtil.CacheForever(w)
 		}
 		http.ServeContent(w, r, fileInfo.Name(), fileInfo.ModTime(), ff)
 	// 不支持其他方法

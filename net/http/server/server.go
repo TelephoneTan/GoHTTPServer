@@ -186,8 +186,7 @@ func (s Server) match(hostInfo HostPack) bool {
 		matchPort(hostInfo.IPPort, s.GetIPPorts)
 }
 
-func HandlePanic(w http.ResponseWriter, r *http.Request) {
-	panicArgument := recover()
+func HandlePanic(w http.ResponseWriter, r *http.Request, panicArgument any) {
 	var id string
 	var statusCode int
 	switch e := panicArgument.(type) {
@@ -232,7 +231,7 @@ notHandle:
 start:
 	defer func() {
 		if !normal {
-			HandlePanic(w, r)
+			HandlePanic(w, r, recover())
 			handled = true
 		}
 	}()

@@ -1,5 +1,5 @@
-github.com/TelephoneTan/GoHTTPGzipServer v1.1.0 h1:5lymXUENM2BmVLVj1jOoqM0zRTfWrPKpCD1FH9ll99M=
-github.com/TelephoneTan/GoHTTPGzipServer v1.1.0/go.mod h1:jFhAd0x2N3UiGxeGNQpveNKubKRJla98Mj7abfFfnoY=
+github.com/TelephoneTan/GoHTTPGzipServer v1.1.1 h1:W3J5S+9D9ZGy0EASd05vBrg86WE3ZCTIxJeo5XMhrCI=
+github.com/TelephoneTan/GoHTTPGzipServer v1.1.1/go.mod h1:jFhAd0x2N3UiGxeGNQpveNKubKRJla98Mj7abfFfnoY=
 github.com/TelephoneTan/GoLog v0.0.0-20230123123405-22c9b91ea0b0 h1:94jORN2FBBh7arbG0F+IuyT3Q1Plcqz9rxDX41LS9+A=
 github.com/TelephoneTan/GoLog v0.0.0-20230123123405-22c9b91ea0b0/go.mod h1:+FhPJrq4eQR9FhSYH2xAScrE4+yJLRx2W/qbLi2+aFc=
 github.com/fatih/color v1.13.0 h1:8LOYc1KYPPmyKMuN8QV2DNRWNbLo6LZ0iLs8+mlH53w=

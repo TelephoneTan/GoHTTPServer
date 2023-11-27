@@ -3,7 +3,7 @@ module github.com/TelephoneTan/GoHTTPServer
 go 1.20
 
 require (
-	github.com/TelephoneTan/GoHTTPGzipServer v1.1.0
+	github.com/TelephoneTan/GoHTTPGzipServer v1.1.1
 	github.com/TelephoneTan/GoLog v0.0.0-20230123123405-22c9b91ea0b0
 	golang.org/x/net v0.9.0
 )

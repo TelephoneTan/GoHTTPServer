@@ -189,6 +189,7 @@ func (s Server) match(hostInfo HostPack) bool {
 func HandlePanic(w http.ResponseWriter, r *http.Request, panicArgument any) {
 	var id string
 	var statusCode int
+	var stackTrace []byte
 	switch e := panicArgument.(type) {
 	case Exception:
 		e.SetHeader(w)
@@ -196,10 +197,12 @@ func HandlePanic(w http.ResponseWriter, r *http.Request, panicArgument any) {
 		w.Header().Add("Error-Code", mime.QEncoding.Encode("utf-8", e.Code()))
 		w.Header().Add("Error-ID", mime.QEncoding.Encode("utf-8", e.ID()))
 		statusCode = e.HTTPCode()
+		stackTrace = []byte(e.StackTrace())
 	default:
 		id = fmt.Sprintf("E#%v#%v ", time.Now().UnixNano(), rand.Int())
 		w.Header().Add("Error-ID", id)
 		statusCode = http.StatusInternalServerError
+		stackTrace = debug.Stack()
 	}
 	if r.Method != "HEAD" {
 		w.Header().Set("Content-Length", "0")
@@ -212,7 +215,7 @@ func HandlePanic(w http.ResponseWriter, r *http.Request, panicArgument any) {
 			"\n======================================\n",
 		id,
 		panicArgument,
-		debug.Stack(),
+		stackTrace,
 	)
 }
 

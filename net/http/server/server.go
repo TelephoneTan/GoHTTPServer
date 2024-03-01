@@ -36,7 +36,7 @@ type _Server struct {
 	Guard             func(http.ResponseWriter, *http.Request, *PathPack) bool
 	HasRootFileServer func() bool
 	GetCDNHost        func() string
-	GetCDNOriginHost  func() string
+	GetCDNOriginHosts func() []string
 	nodes             []ResourceManagerI
 }
 
@@ -249,25 +249,30 @@ start:
 }
 
 func (s Server) toCDN(w http.ResponseWriter, r *http.Request) bool {
-	var cdnHost, cdnOriginHost string
+	var cdnHost string
+	var cdnOriginHosts []string
 	if s.GetCDNHost != nil {
 		cdnHost = s.GetCDNHost()
 	}
-	if s.GetCDNOriginHost != nil {
-		cdnOriginHost = s.GetCDNOriginHost()
+	if s.GetCDNOriginHosts != nil {
+		cdnOriginHosts = s.GetCDNOriginHosts()
 	}
-	if cdnHost != "" && cdnOriginHost != "" {
+	if cdnHost != "" && len(cdnOriginHosts) > 0 {
 		clientHost, _ := idna.ToASCII(r.Host)
-		cdnOriginHost, _ := idna.ToASCII(cdnOriginHost)
-		if !strings.EqualFold(clientHost, cdnOriginHost) {
-			cdnHost, _ := idna.ToASCII(cdnHost)
-			w.Header().Set("Content-Length", "0")
-			w.Header().Set("Location", "//"+cdnHost+r.RequestURI)
-			w.WriteHeader(http.StatusTemporaryRedirect)
-			return true
+		for _, cdnOriginHost := range cdnOriginHosts {
+			cdnOriginHost, _ := idna.ToASCII(cdnOriginHost)
+			if strings.EqualFold(clientHost, cdnOriginHost) {
+				return false
+			}
 		}
+		cdnHost, _ := idna.ToASCII(cdnHost)
+		w.Header().Set("Content-Length", "0")
+		w.Header().Set("Location", "//"+cdnHost+r.RequestURI)
+		w.WriteHeader(http.StatusTemporaryRedirect)
+		return true
+	} else {
+		return false
 	}
-	return false
 }
 
 func (s Server) HandleFile(w http.ResponseWriter, r *http.Request, filePath string, privateOrNoCDN bool) {

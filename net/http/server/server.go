@@ -258,12 +258,8 @@ func (s Server) toCDN(w http.ResponseWriter, r *http.Request) bool {
 		cdnOriginHosts = s.GetCDNOriginHosts()
 	}
 	if cdnHost != "" && len(cdnOriginHosts) > 0 {
-		clientHost, _ := idna.ToASCII(r.Host)
-		for _, cdnOriginHost := range cdnOriginHosts {
-			cdnOriginHost, _ := idna.ToASCII(cdnOriginHost)
-			if strings.EqualFold(clientHost, cdnOriginHost) {
-				return false
-			}
+		if util.MatchCDNOriginHost(r, s.GetCDNOriginHosts) {
+			return false
 		}
 		cdnHost, _ := idna.ToASCII(cdnHost)
 		w.Header().Set("Content-Length", "0")

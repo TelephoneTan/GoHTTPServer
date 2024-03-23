@@ -1,7 +1,10 @@
 package util
 
 import (
+	"golang.org/x/net/idna"
 	"net"
+	"net/http"
+	"strings"
 )
 
 func ShallowCloneSlice[T any](src []T) []T {
@@ -68,4 +71,19 @@ func GetLocalhostIPs() (ips []net.IP) {
 		}
 	}
 	return ips
+}
+
+func MatchCDNOriginHost(r *http.Request, getCDNOriginHosts func() []string) bool {
+	var cdnOriginHosts []string
+	if getCDNOriginHosts != nil {
+		cdnOriginHosts = getCDNOriginHosts()
+	}
+	clientHost, _ := idna.ToASCII(r.Host)
+	for _, host := range cdnOriginHosts {
+		host, _ := idna.ToASCII(host)
+		if strings.EqualFold(clientHost, host) {
+			return true
+		}
+	}
+	return false
 }

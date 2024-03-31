@@ -160,6 +160,47 @@ start:
 	goto end
 }
 
+func retrieveHostName(origin string) string {
+	byColon := strings.Split(origin, ":")
+	if len(byColon) < 2 {
+		return ""
+	}
+	origin = byColon[1]
+	bySlash := strings.Split(origin, "/")
+	if len(bySlash) < 3 {
+		return ""
+	}
+	origin = bySlash[2]
+	var err error
+	origin, err = idna.ToASCII(origin)
+	if err != nil {
+		return ""
+	}
+	return origin
+}
+
+func retrieveScheme(origin string) string {
+	byColon := strings.Split(origin, ":")
+	if len(byColon) < 2 {
+		return ""
+	}
+	return byColon[0]
+}
+
+func retrievePort(origin string) string {
+	byColon := strings.Split(origin, ":")
+	if len(byColon) < 3 {
+		return ""
+	}
+	return byColon[2]
+}
+
+func matchOrigin(origin1 string, origin2 string) bool {
+	return strings.EqualFold(retrieveScheme(origin1), retrieveScheme(origin2)) &&
+		strings.EqualFold(retrieveHostName(origin1), retrieveHostName(origin2)) &&
+		strings.EqualFold(retrievePort(origin1), retrievePort(origin2))
+}
+
 // 处理请求
 func (rm ResourceManager[PACK]) handle(s Server, r *http.Request, w http.ResponseWriter, paths PathPack) (hijacked bool) {
 	goto start
@@ -212,18 +253,10 @@ start:
 			origin = r.Header.Get("Origin")
 		}
 		if origin != "" {
-			origin, err := idna.ToASCII(origin)
-			if err != nil {
-				goto originEnd
-			}
 			corsMethod := r.Header.Get("Access-Control-Request-Method")
 			corsHeaders := r.Header.Get("Access-Control-Request-Headers")
 			for _, allow := range corsOrigins {
-				allow, err := idna.ToASCII(allow)
-				if err != nil {
-					continue
-				}
-				if !strings.EqualFold(allow, origin) {
+				if !matchOrigin(allow, origin) {
 					continue
 				}
 				w.Header().Set("Access-Control-Allow-Origin", origin)
@@ -237,7 +270,6 @@ start:
 				}
 			}
 		}
-	originEnd:
 		reply()
 	}
 	goto end

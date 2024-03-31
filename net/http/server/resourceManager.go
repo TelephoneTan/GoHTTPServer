@@ -7,6 +7,7 @@ import (
 	httpUtil "github.com/TelephoneTan/GoHTTPServer/util/http"
 	"github.com/TelephoneTan/GoLog/log"
 	"net/http"
+	"strings"
 )
 
 type ResourceRequestHandler[PACK any] struct {
@@ -38,9 +39,10 @@ type _ResourceManager[PACK any] struct {
 	// 用于决定该请求是否需要自动重定向，以及如果需要的话，提供自动重定向的状态码和 Location
 	GetRedirect func(r *http.Request, paths PathPack) (redirect bool, statusCode int, location string)
 	// 用于记录请求，所有情况下均会被调用
-	Record func(r *http.Request, paths PathPack)
-	Guide  map[method.Method]ResourceRequestHandler[PACK]
-	nodes  []ResourceManagerI
+	Record           func(r *http.Request, paths PathPack)
+	Guide            map[method.Method]ResourceRequestHandler[PACK]
+	CORSAllowOrigins func() []string
+	nodes            []ResourceManagerI
 }
 
 type ResourceManager[PACK any] struct {
@@ -172,10 +174,10 @@ start:
 		hijacked = true
 		goto end
 	}
+	supportedMethodList := []method.Method{
+		method.OPTIONS,
+	}
 	if method.Parse(r.Method) == method.OPTIONS { // OPTIONS 方法的处理比较特殊，会改写 hijacked、reply
-		supportedMethodList := []method.Method{
-			method.OPTIONS,
-		}
 		for m := range rm.Guide {
 			if m != method.OPTIONS {
 				func() {
@@ -200,6 +202,32 @@ start:
 		monitor(hijacked)
 	}
 	if hijacked {
+		var corsOrigins []string
+		if rm.CORSAllowOrigins != nil {
+			corsOrigins = rm.CORSAllowOrigins()
+		}
+		var origin string
+		if len(corsOrigins) > 0 {
+			origin = r.Header.Get("Origin")
+		}
+		if origin != "" {
+			corsMethod := r.Header.Get("Access-Control-Request-Method")
+			corsHeaders := r.Header.Get("Access-Control-Request-Headers")
+			for _, allow := range corsOrigins {
+				if !strings.EqualFold(allow, origin) {
+					continue
+				}
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				if corsMethod != "" {
+					httpUtil.SetAccessControlAllowMethods(w, supportedMethodList...)
+					if corsHeaders != "" {
+						w.Header().Set("Access-Control-Allow-Headers", corsHeaders)
+					}
+					w.Header().Set("Access-Control-Expose-Headers", "*")
+					w.Header().Set("Access-Control-Max-Age", "0")
+				}
+			}
+		}
 		reply()
 	}
 	goto end

@@ -8,12 +8,18 @@ import (
 	"strings"
 )
 
-func SetAllow(w http.ResponseWriter, method ...method.Method) {
+func setAllow(w http.ResponseWriter, headerKey string, method ...method.Method) {
 	methods := make([]string, 0, len(method))
 	for _, m := range method {
 		methods = append(methods, m.String())
 	}
-	w.Header().Set(header.Allow, strings.Join(methods, ","))
+	w.Header().Set(headerKey, strings.Join(methods, ","))
+}
+func SetAllow(w http.ResponseWriter, method ...method.Method) {
+	setAllow(w, header.Allow, method...)
+}
+func SetAccessControlAllowMethods(w http.ResponseWriter, method ...method.Method) {
+	setAllow(w, header.AccessControlAllowMethods, method...)
 }
 func SetContentType(w http.ResponseWriter, t mime.Type) {
 	w.Header().Set(header.ContentType, t)

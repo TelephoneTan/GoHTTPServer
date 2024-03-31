@@ -6,6 +6,7 @@ import (
 	"github.com/TelephoneTan/GoHTTPServer/util"
 	httpUtil "github.com/TelephoneTan/GoHTTPServer/util/http"
 	"github.com/TelephoneTan/GoLog/log"
+	"golang.org/x/net/idna"
 	"net/http"
 	"strings"
 )
@@ -211,9 +212,17 @@ start:
 			origin = r.Header.Get("Origin")
 		}
 		if origin != "" {
+			origin, err := idna.ToASCII(origin)
+			if err != nil {
+				goto originEnd
+			}
 			corsMethod := r.Header.Get("Access-Control-Request-Method")
 			corsHeaders := r.Header.Get("Access-Control-Request-Headers")
 			for _, allow := range corsOrigins {
+				allow, err := idna.ToASCII(allow)
+				if err != nil {
+					continue
+				}
 				if !strings.EqualFold(allow, origin) {
 					continue
 				}
@@ -228,6 +237,7 @@ start:
 				}
 			}
 		}
+	originEnd:
 		reply()
 	}
 	goto end

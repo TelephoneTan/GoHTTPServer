@@ -218,12 +218,12 @@ start:
 					continue
 				}
 				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Expose-Headers", "*")
 				if corsMethod != "" {
 					httpUtil.SetAccessControlAllowMethods(w, supportedMethodList...)
 					if corsHeaders != "" {
 						w.Header().Set("Access-Control-Allow-Headers", corsHeaders)
 					}
-					w.Header().Set("Access-Control-Expose-Headers", "*")
 					w.Header().Set("Access-Control-Max-Age", "0")
 				}
 			}

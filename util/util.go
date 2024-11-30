@@ -87,3 +87,16 @@ func MatchCDNOriginHost(r *http.Request, getCDNOriginHosts func() []string) bool
 	}
 	return false
 }
+
+func MatchSafeHTTPHeaderKey(r *http.Request, getSafeHTTPHeaderKeys func() []string) bool {
+	var safeHTTPHeaderKeys []string
+	if getSafeHTTPHeaderKeys != nil {
+		safeHTTPHeaderKeys = getSafeHTTPHeaderKeys()
+	}
+	for _, h := range safeHTTPHeaderKeys {
+		if r.Header.Get(h) != "" {
+			return true
+		}
+	}
+	return false
+}

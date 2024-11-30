@@ -29,6 +29,7 @@ type _Container struct {
 	GetPickSSLCertFunc         func() PickSSLCertFunc
 	ShouldListenOnDefaultPorts func() bool
 	GetCDNOriginHosts          func() []string
+	GetSafeHTTPHeaderKeys      func() []string
 	wg                         sync.WaitGroup
 }
 type Container = *_Container
@@ -116,7 +117,8 @@ func (c Container) Boot() {
 		if pickSSL != nil {
 			httpHandler = http.NewServeMux()
 			httpHandler.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-				if util.MatchCDNOriginHost(request, c.GetCDNOriginHosts) {
+				if util.MatchCDNOriginHost(request, c.GetCDNOriginHosts) ||
+					util.MatchSafeHTTPHeaderKey(request, c.GetSafeHTTPHeaderKeys) {
 					handler.ServeHTTP(writer, request)
 					return
 				}
